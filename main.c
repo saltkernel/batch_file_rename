@@ -6,7 +6,69 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-void list_files(const char *dirpath) {
+#ifndef __FNMATCH_H__
+#define __FNMATCH_H__
+
+#define FNM_NOESCAPE 0x01
+#define FNM_PATHNAME 0x02
+#define FNM_PERIOD   0x04
+#define FNM_CASEFOLD 0x08
+#define FNM_NOMATCH  1
+
+int fnmatch(const char *pattern, const char *string, int flags) {
+    if (!pattern || !string) return 1;
+
+    while (*pattern && *string) {
+        if (*pattern == '*') {
+            pattern++;
+            while (*pattern == '*') pattern++;
+            if (!*pattern) return 0;
+            while (*string) {
+                if (fnmatch(pattern, string, flags) == 0) return 0;
+                string++;
+            }
+            return 1;
+        } else if (*pattern == '?') {
+            pattern++;
+            string++;
+        } else if (*pattern == '[' && (flags & FNM_PATHNAME) == 0) {
+            pattern++;
+            int match = 0;
+            int negate = 0;
+            if (*pattern == '!') { negate = 1; pattern++; }
+            while (*pattern && *pattern != ']') {
+                if (*(pattern + 1) == '-' && *(pattern + 2)) {
+                    if (*string >= *pattern && *string <= *(pattern + 2)) match = 1;
+                    pattern += 2;
+                } else if (*pattern == *string) {
+                    match = 1;
+                }
+                pattern++;
+            }
+            if (*pattern == ']') pattern++;
+            if (negate) match = !match;
+            if (!match) return 1;
+            string++;
+        } else {
+            if (*pattern == *string) {
+                pattern++;
+                string++;
+            } else if ((flags & FNM_CASEFOLD) && (*pattern | 0x20) == (*string | 0x20)) {
+                pattern++;
+                string++;
+            } else {
+                return 1;
+            }
+        }
+    }
+
+    while (*pattern == '*') pattern++;
+    return *pattern || *string ? FNM_NOMATCH : 0;
+}
+
+#endif
+
+void list_files(const char *dirpath, const char *match) {
     DIR *dir = opendir(dirpath);
     if (!dir) {
         fprintf(stderr, "Cannot open directory: %s\n", dirpath);
@@ -36,9 +98,11 @@ void list_files(const char *dirpath) {
         }
 
         if (S_ISDIR(st.st_mode)) {
-            list_files(fullpath);
+            list_files(fullpath, match);
         } else if (S_ISREG(st.st_mode)) {
-            printf("%s\n", fullpath);
+            if (fnmatch(match, entry->d_name, 0) == 0) {
+                printf("%s\n", fullpath);
+            }
         }
 
         free(fullpath);
@@ -87,7 +151,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    list_files(dir);
+    list_files(dir, match);
 
     return 0;
 }
