@@ -75,8 +75,8 @@ char *apply_replace(const char *dirpath, const char *filename, const char *match
     size_t flen = strlen(filename);
     size_t dlen = strlen(dirpath);
     size_t count = 0;
-
     const char *p = filename;
+
     while ((p = strstr(p, match)) != NULL) {
         count++;
         p += mlen;
@@ -142,11 +142,11 @@ void list_files(const char *dirpath, const char *match, const char *replace) {
                 if (newpath) {
                     struct stat target_st;
                     if (stat(newpath, &target_st) == 0) {
-                        printf("[ERR] %s -> %s: target exists\n", fullpath, newpath);
+                        fprintf(stderr, "[ERR] %s -> %s: target exists\n", fullpath, newpath);
                     } else if (rename(fullpath, newpath) == 0) {
                         printf("[OK] %s -> %s\n", fullpath, newpath);
                     } else {
-                        printf("[ERR] %s -> %s: %s\n", fullpath, newpath, strerror(errno));
+                        fprintf(stderr, "[ERR] %s -> %s: %s\n", fullpath, newpath, strerror(errno));
                     }
                     free(newpath);
                 }
@@ -168,15 +168,16 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"match", required_argument, NULL, 'm'},
         {"replace", required_argument, NULL, 'r'},
+        {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0}
     };
 
-    if (argc < 4) {
+    if (argc < 2) {
         fprintf(stderr, "Usage: %s <directory> --match <pattern> --replace <replacement>\n", argv[0]);
         return 1;
     }
 
-    while ((opt = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "m:r:h", long_options, NULL)) != -1) {
         switch (opt) {
             case 'm':
                 match = optarg;
@@ -184,6 +185,9 @@ int main(int argc, char *argv[]) {
             case 'r':
                 replace = optarg;
                 break;
+            case 'h':
+                fprintf(stderr, "Usage: %s <directory> --match <pattern> --replace <replacement>\n", argv[0]);
+                return 0;
             default:
                 fprintf(stderr, "Usage: %s <directory> --match <pattern> --replace <replacement>\n", argv[0]);
                 return 1;
