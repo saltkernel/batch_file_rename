@@ -68,7 +68,43 @@ int fnmatch(const char *pattern, const char *string, int flags) {
 
 #endif
 
-void list_files(const char *dirpath, const char *match) {
+char *apply_replace(const char *dirpath, const char *filename, const char *match, const char *replace) {
+    size_t mlen = strlen(match);
+    size_t rlen = strlen(replace);
+    size_t flen = strlen(filename);
+    size_t dlen = strlen(dirpath);
+    size_t count = 0;
+
+    const char *p = filename;
+    while ((p = strstr(p, match)) != NULL) {
+        count++;
+        p += mlen;
+    }
+
+    size_t new_flen = flen + count * (rlen - mlen);
+    size_t len = dlen + 1 + new_flen + 1;
+    char *newpath = malloc(len);
+    if (!newpath) return NULL;
+
+    memcpy(newpath, dirpath, dlen);
+    newpath[dlen] = '/';
+
+    const char *s = filename;
+    char *d = newpath + dlen + 1;
+    while ((p = strstr(s, match)) != NULL) {
+        size_t n = p - s;
+        memcpy(d, s, n);
+        d += n;
+        memcpy(d, replace, rlen);
+        d += rlen;
+        s = p + mlen;
+    }
+    strcpy(d, s);
+
+    return newpath;
+}
+
+void list_files(const char *dirpath, const char *match, const char *replace) {
     DIR *dir = opendir(dirpath);
     if (!dir) {
         fprintf(stderr, "Cannot open directory: %s\n", dirpath);
@@ -98,10 +134,14 @@ void list_files(const char *dirpath, const char *match) {
         }
 
         if (S_ISDIR(st.st_mode)) {
-            list_files(fullpath, match);
+            list_files(fullpath, match, replace);
         } else if (S_ISREG(st.st_mode)) {
             if (fnmatch(match, entry->d_name, 0) == 0) {
-                printf("%s\n", fullpath);
+                char *newpath = apply_replace(dirpath, entry->d_name, match, replace);
+                if (newpath) {
+                    printf("%s -> %s\n", fullpath, newpath);
+                    free(newpath);
+                }
             }
         }
 
@@ -151,7 +191,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    list_files(dir, match);
+    list_files(dir, match, replace);
 
     return 0;
 }
