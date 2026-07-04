@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <getopt.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -139,7 +140,14 @@ void list_files(const char *dirpath, const char *match, const char *replace) {
             if (fnmatch(match, entry->d_name, 0) == 0) {
                 char *newpath = apply_replace(dirpath, entry->d_name, match, replace);
                 if (newpath) {
-                    printf("%s -> %s\n", fullpath, newpath);
+                    struct stat target_st;
+                    if (stat(newpath, &target_st) == 0) {
+                        printf("[ERR] %s -> %s: target exists\n", fullpath, newpath);
+                    } else if (rename(fullpath, newpath) == 0) {
+                        printf("[OK] %s -> %s\n", fullpath, newpath);
+                    } else {
+                        printf("[ERR] %s -> %s: %s\n", fullpath, newpath, strerror(errno));
+                    }
                     free(newpath);
                 }
             }
